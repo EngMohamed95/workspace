@@ -12,7 +12,7 @@
     "lint": "tsc --noEmit",
     "test:acceptance": "tsx scripts/acceptance-test.ts",
     "db:backup": "tsx scripts/backup-db.ts",
-    "build:server": "esbuild start.ts --bundle --platform=node --format=esm --target=node22 --packages=external --outfile=dist/server.js --define:process.env.NODE_ENV=\\\"production\\\""
+    "build:server": "node scripts/build-server.mjs"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
