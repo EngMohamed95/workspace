@@ -43,7 +43,7 @@ jobs:
         id: config
         env:
           HOSTINGER_API_TOKEN: ${{ secrets.HOSTINGER_API_TOKEN }}
-          HOSTINGER_DOMAIN: ${{ vars.HOSTINGER_DOMAIN }}
+          HOSTINGER_DOMAIN: ${{ vars.HOSTINGER_DOMAIN || secrets.HOSTINGER_DOMAIN }}
         run: |
           if [ -z "$HOSTINGER_API_TOKEN" ] || [ -z "$HOSTINGER_DOMAIN" ]; then
             echo "::warning::HOSTINGER_API_TOKEN secret or HOSTINGER_DOMAIN variable is not set; skipping deploy."
@@ -64,10 +64,11 @@ jobs:
         if: steps.config.outputs.ready == 'true'
         env:
           HOSTINGER_API_TOKEN: ${{ secrets.HOSTINGER_API_TOKEN }}
-          HOSTINGER_DOMAIN: ${{ vars.HOSTINGER_DOMAIN }}
+          HOSTINGER_DOMAIN: ${{ vars.HOSTINGER_DOMAIN || secrets.HOSTINGER_DOMAIN }}
           CI: "true"
         run: |
           hostinger version
+          set +e
           hostinger up . \
             --domain "$HOSTINGER_DOMAIN" \
             --type nodejs \
@@ -76,4 +77,14 @@ jobs:
             --entry-file dist/server.js \
             --node-version 22 \
             --yes \
-            --format json
+            --format json > deploy-result.json 2> deploy-error.log
+          code=$?
+          set -e
+          cat deploy-result.json; cat deploy-error.log >&2
+          # Surface the result as an annotation so it is visible on the run page.
+          summary=$(cat deploy-result.json deploy-error.log | tr '\n' ' ' | cut -c1-3000)
+          if [ "$code" -ne 0 ]; then
+            echo "::error title=Hostinger deploy failed (exit $code)::$summary"
+            exit "$code"
+          fi
+          echo "::notice title=Hostinger deploy result::$summary"
