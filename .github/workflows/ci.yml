@@ -1,0 +1,35 @@
+# Checks every push/PR: clean install, type check and production build.
+# Deployment itself is done by Hostinger's GitHub integration (hPanel), which pulls
+# main and runs `npm install` + `npm run build`, then starts dist/server.js.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+      - name: Check build output
+        run: test -f dist/server.js && test -f dist/index.html
