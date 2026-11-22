@@ -1,0 +1,6 @@
+{
+  "name": "Stack Space — إدارة الوركسبيس ومركز الكورسات",
+  "description": "نظام إدارة داخلي متكامل لوركسبيس ومركز كورسات برمجة Stack Space في مصر: الجلسات بالساعة والدقيقة، المشروبات، الكورسات وأقساط الطلاب، المصروفات والإيرادات، وتقرير صافي الربح الشهري على أساس نقدي.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

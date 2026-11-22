@@ -1,0 +1,37 @@
+# Local MySQL for Stack Space development.
+# Data lives in the named Docker volume "stack-space-mysql-data" and survives
+# container restarts, rebuilds and `docker compose down` (only `down -v` deletes it).
+# Credentials are read from .env (MYSQL_DATABASE, MYSQL_USER, MYSQL_PASSWORD, MYSQL_ROOT_PASSWORD).
+#
+#   Start:   docker compose up -d
+#   Stop:    docker compose stop
+#   Backup:  npm run db:backup
+
+services:
+  mysql:
+    image: mysql:8.4.11
+    container_name: stack-space-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?set MYSQL_ROOT_PASSWORD in .env}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-stack_space}
+      MYSQL_USER: ${MYSQL_USER:?set MYSQL_USER in .env}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?set MYSQL_PASSWORD in .env}
+      TZ: Africa/Cairo
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    ports:
+      - "127.0.0.1:${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - stack-space-mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+volumes:
+  stack-space-mysql-data:
+    name: stack-space-mysql-data
