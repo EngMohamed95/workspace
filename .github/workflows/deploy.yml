@@ -67,6 +67,15 @@ jobs:
           HOSTINGER_DOMAIN: ${{ vars.HOSTINGER_DOMAIN || secrets.HOSTINGER_DOMAIN }}
           CI: "true"
         run: |
+          # Strip stray whitespace/quotes that often sneak in when pasting the secret.
+          HOSTINGER_API_TOKEN=$(printf '%s' "$HOSTINGER_API_TOKEN" | tr -d '\r\n' | sed -e 's/^[[:space:]"'"'"']*//' -e 's/[[:space:]"'"'"']*$//')
+          HOSTINGER_DOMAIN=$(printf '%s' "$HOSTINGER_DOMAIN" | tr -d '\r\n' | sed -e 's/^[[:space:]"'"'"']*//' -e 's/[[:space:]"'"'"']*$//' -e 's#^https\?://##' -e 's#/.*$##')
+          export HOSTINGER_API_TOKEN HOSTINGER_DOMAIN
+          echo "Token length: ${#HOSTINGER_API_TOKEN}, domain: $HOSTINGER_DOMAIN"
+          for path in /api/billing/v1/subscriptions /api/hosting/v1/websites; do
+            status=$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $HOSTINGER_API_TOKEN" "https://developers.hostinger.com$path")
+            echo "API check $path -> HTTP $status"
+          done
           hostinger version
           set +e
           hostinger up . \
