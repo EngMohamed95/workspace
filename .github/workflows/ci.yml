@@ -1,0 +1,38 @@
+# Checks every push/PR: clean install, type check and production build.
+#
+# Deployment is NOT done here. Hostinger's Node.js Web App is connected to this repo
+# in hPanel (Git integration): every push to main makes Hostinger pull the code, run
+# `npm install` + `npm run build`, and start dist/server.js. Files uploaded over FTP
+# are not used by Hostinger Node.js apps, so there is no FTP step.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+      - name: Check build output
+        run: test -f dist/server.js && test -f dist/index.html

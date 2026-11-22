@@ -12,3 +12,4 @@ backups/
 data/
 .npm-cache/
 .omc/
+release/
