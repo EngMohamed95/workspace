@@ -1,4 +1,6 @@
-import Database from 'better-sqlite3';
+// better-sqlite3 is an optional dependency, loaded only for the local SQLite fallback
+// (see createDatabase), so a failed native install never blocks a MySQL deployment.
+import type Database from 'better-sqlite3';
 import mysql, { type Pool, type PoolConnection, type ResultSetHeader, type RowDataPacket } from 'mysql2/promise';
 import fs from 'fs';
 import path from 'path';
@@ -709,7 +711,8 @@ export async function createDatabase(options?: {
     }
   }
 
-  const rawSqlite = new Database(resolvedPath);
+  const { default: BetterSqlite3 } = await import('better-sqlite3');
+  const rawSqlite = new BetterSqlite3(resolvedPath);
   rawSqlite.pragma('journal_mode = WAL');
   rawSqlite.pragma('foreign_keys = ON');
   rawSqlite.pragma('busy_timeout = 5000');
