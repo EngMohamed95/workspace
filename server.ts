@@ -24,7 +24,7 @@ export async function createApp(options?: {
   return { app, db };
 }
 
-async function startServer() {
+export async function startServer() {
   const port = Number(process.env.PORT || 3000);
   const isProd = process.env.NODE_ENV === 'production';
   const { app } = await createApp();
@@ -40,7 +40,9 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    const distDir = path.resolve(__dirname, 'dist');
+    // When bundled (npm run build) this file runs as dist/server.js, next to the client build.
+    const distDir =
+      path.basename(__dirname) === 'dist' ? __dirname : path.resolve(__dirname, 'dist');
     if (fs.existsSync(distDir)) {
       app.use(express.static(distDir));
       app.get('*', (_req, res) => {
@@ -54,7 +56,10 @@ async function startServer() {
   });
 }
 
+// Only auto-start when server.ts itself is executed (npm run dev). The production
+// bundle (dist/server.js) is started by start.ts instead.
 const isMain =
+  __filename.endsWith('.ts') &&
   process.argv[1] &&
   path.resolve(process.argv[1]) === path.resolve(__filename);
 

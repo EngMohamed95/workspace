@@ -1,0 +1,79 @@
+# Deploys Stack Space to Hostinger (Node.js Web App on Business/Cloud hosting) on every push to main.
+#
+# One-time setup in GitHub → Settings → Secrets and variables → Actions:
+#   Secret   HOSTINGER_API_TOKEN  API token from https://hpanel.hostinger.com/profile/api
+#   Variable HOSTINGER_DOMAIN     the site's domain on Hostinger, e.g. stackspace.example.com
+#
+# The app's runtime settings (MYSQL_HOST=127.0.0.1, MYSQL_USER, MYSQL_PASSWORD, MYSQL_DATABASE, ...)
+# are set once in hPanel → the website → Node.js → Environment variables, never in this file.
+
+name: Deploy to Hostinger
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-hostinger
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npm run lint
+
+      - name: Build (sanity check before deploying)
+        run: npm run build
+
+      - name: Check Hostinger settings
+        id: config
+        env:
+          HOSTINGER_API_TOKEN: ${{ secrets.HOSTINGER_API_TOKEN }}
+          HOSTINGER_DOMAIN: ${{ vars.HOSTINGER_DOMAIN }}
+        run: |
+          if [ -z "$HOSTINGER_API_TOKEN" ] || [ -z "$HOSTINGER_DOMAIN" ]; then
+            echo "::warning::HOSTINGER_API_TOKEN secret or HOSTINGER_DOMAIN variable is not set; skipping deploy."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install Hostinger CLI
+        if: steps.config.outputs.ready == 'true'
+        run: |
+          curl -fsSL https://github.com/hostinger/api-cli/releases/latest/download/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      # Uploads the source (node_modules, .git, .env and .gitignore'd paths are excluded);
+      # Hostinger then runs `npm install` + `npm run build` and starts dist/server.js.
+      - name: Deploy to Hostinger
+        if: steps.config.outputs.ready == 'true'
+        env:
+          HOSTINGER_API_TOKEN: ${{ secrets.HOSTINGER_API_TOKEN }}
+          HOSTINGER_DOMAIN: ${{ vars.HOSTINGER_DOMAIN }}
+          CI: "true"
+        run: |
+          hostinger version
+          hostinger up . \
+            --domain "$HOSTINGER_DOMAIN" \
+            --type nodejs \
+            --app-type express \
+            --build-script build \
+            --entry-file dist/server.js \
+            --node-version 22 \
+            --yes \
+            --format json
