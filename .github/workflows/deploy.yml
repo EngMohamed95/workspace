@@ -1,0 +1,103 @@
+# Deploys Stack Space to the Hostinger Node.js app on every push to main
+# (or manually: Actions → Deploy to Hostinger → Run workflow).
+#
+# One-time setup in GitHub → Settings → Secrets and variables → Actions → New repository secret:
+#   HOSTINGER_API_TOKEN   created in hPanel → Profile → API (https://hpanel.hostinger.com/profile/api)
+#
+# The app's database settings (MYSQL_HOST, MYSQL_USER, ...) live in hPanel → the website →
+# Environment variables, never in this file.
+
+name: Deploy to Hostinger
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-hostinger
+  cancel-in-progress: false
+
+env:
+  HOSTINGER_DOMAIN: workspace.devmo.pro
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npm run lint
+
+      - name: Build (must pass before anything is uploaded)
+        run: npm run build && test -f dist/server.js && test -f dist/index.html
+
+      - name: Check Hostinger API token
+        env:
+          HOSTINGER_API_TOKEN: ${{ secrets.HOSTINGER_API_TOKEN }}
+        run: |
+          token=$(printf '%s' "$HOSTINGER_API_TOKEN" | tr -d '\r\n[:space:]')
+          if [ -z "$token" ]; then
+            echo "::error::The HOSTINGER_API_TOKEN secret is not set. Create a token in hPanel → Profile → API and add it under Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+          status=$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $token" https://developers.hostinger.com/api/hosting/v1/websites)
+          if [ "$status" != 200 ]; then
+            echo "::error::Hostinger rejected HOSTINGER_API_TOKEN (HTTP $status). Create a new token in hPanel → Profile → API and replace the secret."
+            exit 1
+          fi
+          echo "Hostinger API token OK"
+
+      # Upload only the files tracked in git (no node_modules, dist, .env or local data).
+      # Hostinger then runs npm install + npm run build and starts server.js.
+      - name: Prepare source package
+        run: |
+          mkdir -p "$RUNNER_TEMP/package"
+          git archive HEAD | tar -x -C "$RUNNER_TEMP/package"
+          ls -la "$RUNNER_TEMP/package"
+
+      - name: Install Hostinger CLI
+        run: |
+          curl -fsSL https://github.com/hostinger/api-cli/releases/latest/download/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Deploy
+        env:
+          HOSTINGER_API_TOKEN: ${{ secrets.HOSTINGER_API_TOKEN }}
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message || 'Manual deploy' }}
+          CI: "true"
+        run: |
+          export HOSTINGER_API_TOKEN=$(printf '%s' "$HOSTINGER_API_TOKEN" | tr -d '\r\n[:space:]')
+          hostinger version
+          cd "$RUNNER_TEMP/package"
+          message=$(printf '%s' "$COMMIT_MESSAGE" | head -n1 | cut -c1-200)
+          hostinger up . \
+            --domain "$HOSTINGER_DOMAIN" \
+            --type nodejs \
+            --app-type express \
+            --entry-file server.js \
+            -m "$message" \
+            --yes \
+            --format json
+
+      - name: Check the live site
+        run: |
+          for i in $(seq 1 30); do
+            body=$(curl -s -m 20 "https://$HOSTINGER_DOMAIN/api/auth/status" || true)
+            case "$body" in
+              *needsSetup*) echo "Live: $body"; exit 0 ;;
+            esac
+            sleep 10
+          done
+          echo "::error::https://$HOSTINGER_DOMAIN/api/auth/status did not answer after the deploy. Check hPanel → Deployments and Runtime logs."
+          exit 1
