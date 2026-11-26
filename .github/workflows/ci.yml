@@ -1,9 +1,15 @@
-# Checks pull requests: clean install, type check and production build.
-# Pushes to main are built and deployed by deploy-ftp.yml, which runs the same checks.
+# Checks every push/PR: clean install, type check and production build.
+#
+# Deployment is NOT done here. Hostinger's Node.js Web App is connected to this repo
+# in hPanel (Git integration): every push to main makes Hostinger pull the code, run
+# `npm install` + `npm run build`, and start dist/server.js. Files uploaded over FTP
+# are not used by Hostinger Node.js apps, so there is no FTP step.
 
 name: CI
 
 on:
+  push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
