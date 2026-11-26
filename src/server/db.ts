@@ -711,7 +711,16 @@ export async function createDatabase(options?: {
     }
   }
 
-  const { default: BetterSqlite3 } = await import('better-sqlite3');
+  let BetterSqlite3: typeof Database;
+  try {
+    ({ default: BetterSqlite3 } = await import('better-sqlite3'));
+  } catch (err) {
+    throw new Error(
+      'MYSQL_HOST is not set, so Stack Space tried the local SQLite fallback, but better-sqlite3 is not installed. ' +
+        'Set MYSQL_HOST, MYSQL_USER, MYSQL_PASSWORD and MYSQL_DATABASE in the server environment.',
+      { cause: err }
+    );
+  }
   const rawSqlite = new BetterSqlite3(resolvedPath);
   rawSqlite.pragma('journal_mode = WAL');
   rawSqlite.pragma('foreign_keys = ON');
