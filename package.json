@@ -8,7 +8,7 @@
     "start": "node dist/server.js",
     "build": "vite build && npm run build:server",
     "preview": "vite preview",
-    "clean": "rm -rf dist server.js",
+    "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
     "test:acceptance": "tsx scripts/acceptance-test.ts",
     "db:backup": "tsx scripts/backup-db.ts",
